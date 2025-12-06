@@ -18,9 +18,20 @@ class RedisBase:
 
     def __init__(self):
         self.conn = redis.from_url(
-            url=EnvironmentSettings.REDIS_CON, decode_responses=True
+            url=EnvironmentSettings.REDIS_CON, decode_responses=True,
+            health_check_interval=10,
+            retry_on_timeout=True,
+            socket_keepalive=True,
         )
 
+    def execute_command(self,*args):
+        while True:
+            try:
+                return self.conn.execute_command(*args)
+            except TypeError:
+                print("Redis connection lost, reconnecting")
+                time.sleep(3)
+                self.__init__()
 
 class RedisArchivist(RedisBase):
     """collection of methods to interact with redis"""
@@ -46,14 +57,14 @@ class RedisArchivist(RedisBase):
         to_write = (
             json.dumps(message) if isinstance(message, dict) else message
         )
-        self.conn.execute_command("SET", self.NAME_SPACE + key, to_write)
+        self.execute_command("SET", self.NAME_SPACE + key, to_write)
 
         if expire:
             if isinstance(expire, bool):
                 secs: int = 20
             else:
                 secs = expire
-            self.conn.execute_command("EXPIRE", self.NAME_SPACE + key, secs)
+            self.execute_command("EXPIRE", self.NAME_SPACE + key, secs)
 
         if save:
             self.bg_save()
@@ -67,12 +78,12 @@ class RedisArchivist(RedisBase):
 
     def get_message_str(self, key: str) -> str | None:
         """get message string"""
-        reply = self.conn.execute_command("GET", self.NAME_SPACE + key)
+        reply = self.execute_command("GET", self.NAME_SPACE + key)
         return reply
 
     def get_message_dict(self, key: str) -> dict:
         """get message dict"""
-        reply = self.conn.execute_command("GET", self.NAME_SPACE + key)
+        reply = self.execute_command("GET", self.NAME_SPACE + key)
         if not reply:
             return {}
 
@@ -83,7 +94,7 @@ class RedisArchivist(RedisBase):
         get message dict from redis
         old json get message, only used for migration, to be removed later
         """
-        reply = self.conn.execute_command("JSON.GET", self.NAME_SPACE + key)
+        reply = self.execute_command("JSON.GET", self.NAME_SPACE + key)
         if reply:
             return json.loads(reply)
 
@@ -91,7 +102,7 @@ class RedisArchivist(RedisBase):
 
     def list_keys(self, query: str) -> list:
         """return all key matches"""
-        reply = self.conn.execute_command(
+        reply = self.execute_command(
             "KEYS", self.NAME_SPACE + query + "*"
         )
         if not reply:
@@ -109,7 +120,7 @@ class RedisArchivist(RedisBase):
 
     def del_message(self, key: str, save: bool = False) -> bool:
         """delete key from redis"""
-        response = self.conn.execute_command("DEL", self.NAME_SPACE + key)
+        response = self.execute_command("DEL", self.NAME_SPACE + key)
         if save:
             self.bg_save()
 
@@ -212,12 +223,12 @@ class TaskRedis(RedisBase):
 
     def get_all(self) -> list:
         """return all tasks"""
-        all_keys = self.conn.execute_command("KEYS", f"{self.BASE}*")
+        all_keys = self.execute_command("KEYS", f"{self.BASE}*")
         return [i.replace(self.BASE, "") for i in all_keys]
 
     def get_single(self, task_id: str) -> dict:
         """return content of single task"""
-        result = self.conn.execute_command("GET", self.BASE + task_id)
+        result = self.execute_command("GET", self.BASE + task_id)
         if not result:
             return {}
 
@@ -228,10 +239,10 @@ class TaskRedis(RedisBase):
     ) -> None:
         """set value for lock, initial or update"""
         key: str = f"{self.BASE}{task_id}"
-        self.conn.execute_command("SET", key, json.dumps(message))
+        self.execute_command("SET", key, json.dumps(message))
 
         if expire:
-            self.conn.execute_command("EXPIRE", key, self.EXPIRE)
+            self.execute_command("EXPIRE", key, self.EXPIRE)
 
     def set_command(self, task_id: str, command: str) -> None:
         """set task command"""
@@ -249,7 +260,7 @@ class TaskRedis(RedisBase):
 
     def del_task(self, task_id: str) -> None:
         """delete task result by id"""
-        self.conn.execute_command("DEL", f"{self.BASE}{task_id}")
+        self.execute_command("DEL", f"{self.BASE}{task_id}")
 
     def del_all(self) -> None:
         """delete all task results"""
