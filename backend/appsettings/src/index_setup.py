@@ -113,6 +113,8 @@ class ElasticIndex:
         now_set = self.details["settings"]["index"]
 
         for key, value in self.expected_set.items():
+            if key == "number_of_replicas":
+                continue
             if key not in now_set.keys():
                 print(key, value)
                 return True
@@ -191,7 +193,7 @@ class ElasticIndex:
 
         self.create_blank(new_version=new_version)
         self.reindex(new_version=new_version, removed_fields=removed_fields)
-        self.delete_index(by_version=current_version)
+        #self.delete_index(by_version=current_version)
         self.create_alias(new_version=new_version, old_version=current_version)
 
     def delete_index(self, by_version: int | None):
