@@ -39,6 +39,7 @@ class EnvironmentSettings:
     # Redis
     REDIS_CON: str = str(environ.get("REDIS_CON"))
     REDIS_NAME_SPACE: str = str(environ.get("REDIS_NAME_SPACE", "ta:"))
+    REDIS_MASTER: str = str(environ.get("REDIS_MASTER"))
 
     # ElasticSearch
     ES_URL: str = str(environ.get("ES_URL"))

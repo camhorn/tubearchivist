@@ -17,9 +17,19 @@ class RedisBase:
     NAME_SPACE: str = EnvironmentSettings.REDIS_NAME_SPACE
 
     def __init__(self):
-        self.conn = redis.from_url(
-            url=EnvironmentSettings.REDIS_CON, decode_responses=True
-        )
+        url=EnvironmentSettings.REDIS_CON
+        if url.startswith("sentinel://"):
+            sentinels = [
+                tuple(u.split(':')) for u in
+                    [u.removeprefix("sentinel://") for u in url.split(';')]
+            ]
+            sentinel = redis.sentinel.Sentinel(sentinels)
+            self.conn = sentinel.master_for(
+                EnvironmentSettings.REDIS_MASTER,decode_responses=True)
+        else:
+            self.conn = redis.from_url(
+                url=url, decode_responses=True
+            )
 
 
 class RedisArchivist(RedisBase):

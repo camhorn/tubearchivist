@@ -26,3 +26,6 @@ app.config_from_object(
 )
 app.autodiscover_tasks()
 app.conf.timezone = EnvironmentSettings.TZ
+if EnvironmentSettings.REDIS_MASTER:
+    app.conf.broker_transport_options["master_name"] = EnvironmentSettings.REDIS_MASTER
+    app.conf.result_backend_transport_options["master_name"] = EnvironmentSettings.REDIS_MASTER
